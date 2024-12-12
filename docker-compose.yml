@@ -5,7 +5,7 @@ services:
     container_name: twitch-viewer-bot
     environment:
       PROXY_CHOICE: 2         # Wähle den Proxy-Server aus
-      TWITCH_USERNAME: lazyles # Twitch-Benutzername
+      TWITCH_USERNAME: default_username # Twitch-Benutzername
       PROXY_COUNT: 50        # Anzahl der Proxies
 #      DEBUG: "true"         # Debug-Modus (true/false)
     restart: unless-stopped
