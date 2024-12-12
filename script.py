@@ -1,4 +1,5 @@
 import os
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -28,6 +29,7 @@ def log(message):
     print(f"[LOG] {message}", flush=True)
 
 def remove_overlays(driver):
+#    log("removing overlays")
     """
     Entferne störende Overlays wie Dialoge und Consent-Banner vollständig aus dem DOM.
     """
@@ -37,7 +39,7 @@ def remove_overlays(driver):
     ]
     for selector in overlay_selectors:
         try:
-            overlay = WebDriverWait(driver, 2).until(
+            overlay = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, selector))
             )
             if overlay:
@@ -46,6 +48,7 @@ def remove_overlays(driver):
             pass  # Kein Overlay gefunden oder bereits entfernt
 
 def open_new_connection(driver, proxy_url, active_connections):
+#    log("try to open new connection")
     """
     Öffnet eine neue Verbindung zum Proxy-Server und interagiert mit Twitch.
     """
@@ -54,7 +57,7 @@ def open_new_connection(driver, proxy_url, active_connections):
         driver.switch_to.window(driver.window_handles[-1])
         driver.get(proxy_url)
         remove_overlays(driver)
-        text_box = WebDriverWait(driver, 2).until(
+        text_box = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.ID, 'url'))  # Stelle sicher, dass das Element vorhanden ist
         )
         driver.execute_script("arguments[0].focus();", text_box)
@@ -74,6 +77,7 @@ def main():
     log(f"Twitch username: {TWITCH_USERNAME}")
     log(f"Proxy count: {PROXY_COUNT}")
 
+    log("Starting headless browsers...")
     # Chrome-Optionen konfigurieren
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -81,11 +85,14 @@ def main():
     chrome_options.add_argument('--disable-dev-shm-usage')  # Optimierung für Container
     chrome_options.add_argument('--no-sandbox')
 
+    log("Starting ChromeDriver service...")
     # ChromeDriver-Service explizit konfigurieren
     driver_service = Service("/usr/bin/chromedriver")
+    log(f"-----> driver_service {driver_service}")
     driver = webdriver.Chrome(service=driver_service, options=chrome_options)
-
+    log(f"-----> driver {driver}")
     active_connections = 0
+    log("active_connections = 0")
 
     try:
         driver.get(proxy_url)
@@ -97,7 +104,7 @@ def main():
         while True:
             log(f"Active connections: {active_connections}")
 
-            # Überprüfe auf blockierte Verbindungen
+            # Überprüfe auf blockierte oder abgestürzte Verbindungen
             for handle in driver.window_handles[:]:
                 driver.switch_to.window(handle)
                 try:
@@ -108,10 +115,18 @@ def main():
                         active_connections -= 1
                         log(f"Active connections: {active_connections}")
                         active_connections = open_new_connection(driver, proxy_url, active_connections)
-                except Exception:
-                    continue
+                except Exception as e:
+                    if "session deleted because of page crash" in str(e):
+                        log(f"Tab crashed, closing tab: {handle}")
+                        driver.close()
+                        driver.switch_to.window(driver.window_handles[0])  # Zurück zum ersten Tab
+                        active_connections -= 1
+                        log(f"Active connections: {active_connections}")
+                        active_connections = open_new_connection(driver, proxy_url, active_connections)
+                    else:
+                        continue
 
-#            time.sleep(2)
+            time.sleep(2)
 
     except KeyboardInterrupt:
         log("Received KeyboardInterrupt. Shutting down...")
