@@ -6,7 +6,7 @@
     container_name: twitch-viewer-bot
     environment:
       PROXY_CHOICE: 2
-      TWITCH_USERNAME: xqrv
+      TWITCH_USERNAME: default_username
       PROXY_COUNT: 20
     deploy:
       resources:
